@@ -24,45 +24,27 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
 
-      # ---------- FIX 1: cari gradlew, jangan asumsi di root ----------
-      - name: Locate and fix gradlew permission
-        id: find_gradle
-        run: |
-          if [ -f "./gradlew" ]; then
-            GRADLE_DIR="."
-          elif [ -f "./android/gradlew" ]; then
-            GRADLE_DIR="./android"
-          else
-            echo "::error::gradlew tidak ditemukan. Pastikan folder android/ ikut ke-commit."
-            exit 1
-          fi
-          chmod +x "$GRADLE_DIR/gradlew"
-          echo "GRADLE_DIR=$GRADLE_DIR" >> $GITHUB_ENV
-          echo "Gradle ada di: $GRADLE_DIR"
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: |
-          cd "$GRADLE_DIR"
-          ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug --stacktrace
 
-      # ---------- FIX 2: path artefak pakai wildcard, bukan path kaku ----------
+      - name: Build Release APK (unsigned)
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        run: ./gradlew assembleRelease --stacktrace
+
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: |
             **/build/outputs/apk/debug/*.apk
-            !**/build/outputs/apk/debug/*-unsigned.apk
           if-no-files-found: error
           retention-days: 14
-
-      # ---------- Release: hanya jalan kalau dipicu manual atau tag ----------
-      - name: Build Release APK (unsigned)
-        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-        run: |
-          cd "$GRADLE_DIR"
-          ./gradlew assembleRelease --stacktrace
 
       - name: Upload Release APK
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
